@@ -1,0 +1,21 @@
+.vercel
+node_modules/
+
+# 开发文档
+DEV_REPORT.md
+*.log
+
+# 测试文件
+test*.html
+__tests__/
+*.test.*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 数据库迁移（仅部署时使用）
+数据库迁移.sql
+
+# 截图
+*.png
