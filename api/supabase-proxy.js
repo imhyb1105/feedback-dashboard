@@ -68,6 +68,9 @@ module.exports = async function handler(req, res) {
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type, prefer');
     res.setHeader('cache-control', 'no-store');
+    // Debug headers
+    res.setHeader('x-proxy-target', targetUrl);
+    res.setHeader('x-proxy-body-len', String(upstreamBody.length));
 
     return res.status(upstream.status).send(upstreamBody);
   } catch (e) {
