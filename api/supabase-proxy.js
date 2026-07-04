@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
   var rawPath = req.query.p;
   var supabasePath = Array.isArray(rawPath) ? rawPath.join('/') : (rawPath || '');
 
-  // 手工重建查询参数
+  // 手工重建查询参数（排除 p）
   var qsParts = [];
   var qKeys = Object.keys(req.query || {});
   for (var i = 0; i < qKeys.length; i++) {
@@ -58,19 +58,22 @@ module.exports = async function handler(req, res) {
     var upstream = await fetch(targetUrl, fetchOpts);
     var upstreamBody = await upstream.text();
 
-    // 只设置核心响应头，不转发上游头部（排查 body 丢失问题）
+    // 转发上游响应头（排除 hop-by-hop 和 CORS 冲突的头）
+    upstream.headers.forEach(function(v, k) {
+      var kl = k.toLowerCase();
+      if (kl === 'transfer-encoding' || kl === 'connection' || kl === 'keep-alive') return;
+      if (kl === 'access-control-allow-origin') return;
+      res.setHeader(k, v);
+    });
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type, prefer');
     res.setHeader('cache-control', 'no-store');
-    res.setHeader('content-type', 'application/json; charset=utf-8');
-    res.setHeader('x-proxy-target', targetUrl);
-    res.setHeader('x-proxy-len', String(upstreamBody.length));
 
     res.statusCode = upstream.status;
     res.write(upstreamBody);
     res.end();
   } catch (e) {
-    return res.status(502).json({
+    res.status(502).json({
       error: 'Proxy error',
       message: e.message,
       target: targetUrl
