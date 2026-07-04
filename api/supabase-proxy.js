@@ -58,25 +58,17 @@ module.exports = async function handler(req, res) {
     var upstream = await fetch(targetUrl, fetchOpts);
     var upstreamBody = await upstream.text();
 
-    var resHeaders = {};
-    upstream.headers.forEach(function(v, k) {
-      var kl = k.toLowerCase();
-      if (kl !== 'transfer-encoding' && kl !== 'connection' && kl !== 'keep-alive') {
-        res.setHeader(k, v);
-      }
-    });
+    // 只设置核心响应头，不转发上游头部（排查 body 丢失问题）
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type, prefer');
     res.setHeader('cache-control', 'no-store');
-    // Debug headers
-    res.setHeader('x-proxy-target', targetUrl);
-    res.setHeader('x-proxy-body-len', String(upstreamBody.length));
-
-    // 直接写入响应，绕过 Vercel helper 可能的问题
-    res.statusCode = upstream.status;
     res.setHeader('content-type', 'application/json; charset=utf-8');
-    res.end(upstreamBody);
-    return;
+    res.setHeader('x-proxy-target', targetUrl);
+    res.setHeader('x-proxy-len', String(upstreamBody.length));
+
+    res.statusCode = upstream.status;
+    res.write(upstreamBody);
+    res.end();
   } catch (e) {
     return res.status(502).json({
       error: 'Proxy error',
