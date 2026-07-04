@@ -11,6 +11,7 @@ const PROJECT_NAMES = {
   "tax-calc": "税金计算器",
   "fin-report": "财务报表数据分析",
   "cn-football-sim": "国足世界杯闯关模拟器",
+  "cash-flow": "现金流量表自动编制",
 };
 const TYPE_NAMES = {
   bug: "Bug报告",
@@ -25,9 +26,12 @@ module.exports = async function (req, res) {
   }
 
   try {
-    const { record } = req.body;
+    // 数据库触发器发送的是 row_to_json(NEW)，即裸行数据
+    // 兼容两种格式：{ record: {...} } 和裸行数据
+    const record = req.body.record || req.body;
     if (!record || !record.project || !record.title) {
-      return res.status(400).json({ error: "Missing required fields" });
+      console.error("send-email missing fields:", JSON.stringify(req.body));
+      return res.status(400).json({ error: "Missing required fields", body: req.body });
     }
 
     const projectName = PROJECT_NAMES[record.project] || record.project;
@@ -49,7 +53,7 @@ module.exports = async function (req, res) {
           <tr><td style="padding:8px 12px;color:#6b6560">时间</td><td style="padding:8px 12px">${createdAt}</td></tr>
         </table>
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e8e4e0;text-align:center">
-          <a href="https://feedback-dashboard-blush.vercel.app/dashboard.html" style="color:#1a3a5c;text-decoration:none;font-weight:600">打开管理后台</a>
+          <a href="https://dashboard.tianjiwantong.com.cn/dashboard.html" style="color:#1a3a5c;text-decoration:none;font-weight:600">打开管理后台</a>
         </div>
       </div>`;
 

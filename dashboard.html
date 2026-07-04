@@ -74,6 +74,14 @@ tr:hover td{background:#faf9f7}
 .hidden{display:none!important}
 .empty{text-align:center;padding:40px;color:var(--text3)}
 .loading{text-align:center;padding:20px;color:var(--text3)}
+.error-banner{display:none;align-items:center;gap:10px;padding:10px 16px;margin-bottom:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:.85rem;color:var(--red)}
+.error-banner.show{display:flex}
+.error-banner .err-msg{flex:1}
+.error-banner .err-retry{color:var(--accent);cursor:pointer;text-decoration:underline;white-space:nowrap;font-weight:600}
+.card.error{border:1px solid #fecaca;background:#fffbfb}
+.card.error .value{color:var(--red);font-size:1rem}
+.skel{display:inline-block;background:linear-gradient(90deg,#e8e3de 25%,#f0ece8 50%,#e8e3de 75%);background-size:200% 100%;animation:skel-shim 1.5s infinite;border-radius:4px;vertical-align:middle}
+@keyframes skel-shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* Analytics */
 .hbar-wrap{margin-bottom:14px}
@@ -133,6 +141,8 @@ tr:hover td{background:#faf9f7}
 <button class="logout" id="logout-btn">退出</button>
 </div>
 
+<div class="error-banner" id="error-banner"><span class="err-msg" id="err-msg"></span><span class="err-retry" id="err-retry">重试</span></div>
+
 <div class="tabs">
 <button class="active" data-tab="overview">概览</button>
 <button data-tab="feedbacks">反馈列表</button>
@@ -149,7 +159,7 @@ tr:hover td{background:#faf9f7}
 
 <div id="tab-feedbacks" class="hidden">
 <div class="toolbar">
-<select id="filter-project"><option value="">全部项目</option><option value="bank-rec">银行对账工具</option><option value="tax-tool">个税决策对比工具</option><option value="tax-calc">税金计算器</option><option value="fin-report">财务报表数据分析</option><option value="cn-football-sim">国足世界杯闯关模拟器</option></select>
+<select id="filter-project"><option value="">全部项目</option><option value="bank-rec">银行对账工具</option><option value="tax-tool">个税决策对比工具</option><option value="tax-calc">税金计算器</option><option value="fin-report">财务报表数据分析</option><option value="cn-football-sim">国足世界杯闯关模拟器</option><option value="cash-flow">现金流量表</option></select>
 <select id="filter-type"><option value="">全部类型</option><option value="bug">Bug 报告</option><option value="feature">功能建议</option><option value="improvement">改进建议</option><option value="other">其他</option></select>
 <select id="filter-status"><option value="">全部状态</option><option value="open">待处理</option><option value="in_progress">处理中</option><option value="resolved">已解决</option><option value="closed">已关闭</option></select>
 </div>
@@ -162,7 +172,7 @@ tr:hover td{background:#faf9f7}
 
 <div id="tab-analytics" class="hidden">
 <div class="toolbar">
-<select id="analytics-project"><option value="">全部项目</option><option value="bank-rec">银行对账工具</option><option value="tax-tool">个税决策对比工具</option><option value="tax-calc">税金计算器</option><option value="fin-report">财务报表数据分析</option><option value="cn-football-sim">国足世界杯闯关模拟器</option></select>
+<select id="analytics-project"><option value="">全部项目</option><option value="bank-rec">银行对账工具</option><option value="tax-tool">个税决策对比工具</option><option value="tax-calc">税金计算器</option><option value="fin-report">财务报表数据分析</option><option value="cn-football-sim">国足世界杯闯关模拟器</option><option value="cash-flow">现金流量表</option></select>
 <select id="analytics-days"><option value="7">最近 7 天</option><option value="14">最近 14 天</option><option value="30">最近 30 天</option></select>
 </div>
 
@@ -214,8 +224,8 @@ tr:hover td{background:#faf9f7}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ========== Config ==========
-const SUPABASE_URL = 'https://oiwvqsgkzzhexsfslcoa.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pd3Zxc2drenpoZXhzZnNsY29hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMjE4MjEsImV4cCI6MjA5NTc5NzgyMX0.QEiB0gzqslfCI8xqyhijB6R0kmmgtCS_cBZcdMtvWj0';
+const SUPABASE_URL = 'https://dashboard.tianjiwantong.com.cn/api/supabase';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyZXN6dmNscXhldGZ5aGNsZ3B3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMzU3MzYsImV4cCI6MjA5ODcxMTczNn0.zrHVe87P9DpsTWrkaClCnlr0yTz2rgmrwfHnOTwsb8A';
 const ADMIN_PWD = 'gzh2026';
 
 // ========== State ==========
@@ -223,13 +233,51 @@ let db = null;
 let currentTab = 'overview';
 let currentReplyId = null;
 let feedbackCache = [];
+let globalErrorCount = 0;
+let loadingTab = null;
+
+// ========== Error Handling ==========
+function showError(msg) {
+  globalErrorCount++;
+  var banner = document.getElementById('error-banner');
+  var msgEl = document.getElementById('err-msg');
+  msgEl.textContent = msg;
+  banner.classList.add('show');
+}
+function clearError() {
+  var banner = document.getElementById('error-banner');
+  banner.classList.remove('show');
+  globalErrorCount = 0;
+}
+document.getElementById('err-retry').addEventListener('click', function() {
+  clearError();
+  if (currentTab === 'overview') loadOverview();
+  else if (currentTab === 'feedbacks') loadFeedbacks();
+  else if (currentTab === 'analytics') loadAnalytics();
+});
+
+function checkDB() {
+  if (!db) return false;
+  return true;
+}
+function queryOK(r) { return r && !r.error; }
+function val(v, fallback) { return (v !== null && v !== undefined) ? v : fallback; }
 
 // ========== Login ==========
+function initDB() {
+  if (typeof supabase === 'undefined' || !supabase.createClient) {
+    document.getElementById('login-msg').textContent = 'Supabase SDK 加载失败，请检查网络';
+    return false;
+  }
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return true;
+}
+
 if (sessionStorage.getItem('fb_admin')) {
   document.getElementById('login-page').classList.add('hidden');
   document.getElementById('main-page').classList.remove('hidden');
-  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  loadOverview();
+  if (initDB()) loadOverview();
+  else showError('Supabase SDK 加载失败，请刷新页面后重试');
 }
 
 document.getElementById('login-btn').addEventListener('click', function() {
@@ -239,8 +287,8 @@ document.getElementById('login-btn').addEventListener('click', function() {
     sessionStorage.setItem('fb_admin', '1');
     document.getElementById('login-page').classList.add('hidden');
     document.getElementById('main-page').classList.remove('hidden');
-    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    loadOverview();
+    if (initDB()) loadOverview();
+    else showError('Supabase SDK 加载失败，请刷新页面后重试');
   } else {
     msg.textContent = '密码错误';
   }
@@ -271,70 +319,108 @@ document.querySelectorAll('.tabs button').forEach(function(btn) {
 
 // ========== Overview ==========
 async function loadOverview() {
+  if (!checkDB()) { showError('数据库未连接，请刷新页面'); return; }
+  clearError();
   var cards = document.getElementById('overview-cards');
   var recent = document.getElementById('recent-feedbacks');
-  var projects = ['bank-rec', 'tax-tool', 'tax-calc', 'fin-report', 'cn-football-sim'];
-  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器' };
+  var projects = ['bank-rec', 'tax-tool', 'tax-calc', 'fin-report', 'cn-football-sim', 'cash-flow'];
+  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器', 'cash-flow': '现金流量表' };
 
+  // Show skeleton loading
+  cards.innerHTML = projects.map(function(p) {
+    return '<div class="card"><div class="name">' + names[p] + '</div><div class="value"><span class="skel" style="width:60px;height:1.8rem"></span></div><div class="sub"><span class="skel" style="width:140px;height:0.85rem"></span></div></div>';
+  }).join('');
+  recent.innerHTML = '<div class="loading">加载中...</div>';
+
+  var errorCount = 0;
   var cardsHtml = '';
   for (var i = 0; i < projects.length; i++) {
     var p = projects[i];
-    var fbR = await db.from('feedbacks').select('*', { count: 'exact', head: true }).eq('project', p);
-    var evR = await db.from('usage_events').select('*', { count: 'exact', head: true }).eq('project', p);
-    var lr = await db.from('feedbacks').select('created_at').eq('project', p).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    var er = await db.from('usage_events').select('created_at').eq('project', p).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    var last = lr.data || er.data;
-    var lastStr = last ? new Date(last.created_at).toLocaleString('zh-CN') : '暂无';
+    try {
+      var fbR = await db.from('feedbacks').select('*', { count: 'exact', head: true }).eq('project', p);
+      var evR = await db.from('usage_events').select('*', { count: 'exact', head: true }).eq('project', p);
+      var lr = await db.from('feedbacks').select('created_at').eq('project', p).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      var er = await db.from('usage_events').select('created_at').eq('project', p).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      var hasFbErr = !queryOK(fbR) || !queryOK(lr);
+      var hasEvErr = !queryOK(evR) || !queryOK(er);
+      if (hasFbErr || hasEvErr) errorCount++;
 
-    cardsHtml += '<div class="card"><div class="name">' + names[p] + '</div><div class="value">' + fbR.count + ' <span style="font-size:.85rem;font-weight:400;color:var(--text2)">条反馈</span></div><div class="sub">' + evR.count + ' 次事件 | 最近: ' + lastStr + '</div></div>';
+      var fbCount = val(fbR.count, 0);
+      var evCount = val(evR.count, 0);
+      var last = lr.data || er.data;
+      var lastStr = last ? new Date(last.created_at).toLocaleString('zh-CN') : '暂无';
+
+      cardsHtml += '<div class="card' + (hasFbErr && hasEvErr ? ' error' : '') + '"><div class="name">' + names[p] + '</div><div class="value">' + fbCount + ' <span style="font-size:.85rem;font-weight:400;color:var(--text2)">条反馈</span></div><div class="sub">' + evCount + ' 次事件 | 最近: ' + lastStr + '</div></div>';
+    } catch(e) {
+      errorCount++;
+      cardsHtml += '<div class="card error"><div class="name">' + names[p] + '</div><div class="value">查询失败</div><div class="sub">请检查数据库连接</div></div>';
+    }
   }
   cards.innerHTML = cardsHtml;
 
-  var recentR = await db.from('feedbacks').select('*').order('created_at', { ascending: false }).limit(5);
-  if (recentR.data && recentR.data.length > 0) {
-    var typeMap = { bug: 'Bug', feature: '功能建议', improvement: '改进', other: '其他' };
-    recent.innerHTML = recentR.data.map(function(f) {
-      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div><strong>' + esc(f.title) + '</strong> <span style="font-size:.75rem;color:var(--text3)">[' + (names[f.project]||f.project) + '] [' + (typeMap[f.type]||f.type) + ']</span></div><div style="font-size:.75rem;color:var(--text3)">' + new Date(f.created_at).toLocaleDateString('zh-CN') + '</div></div>';
-    }).join('');
-  } else {
-    recent.innerHTML = '<div class="empty">暂无反馈</div>';
+  try {
+    var recentR = await db.from('feedbacks').select('*').order('created_at', { ascending: false }).limit(5);
+    if (!queryOK(recentR)) throw new Error(recentR.error ? recentR.error.message : '查询失败');
+    if (recentR.data && recentR.data.length > 0) {
+      var typeMap = { bug: 'Bug', feature: '功能建议', improvement: '改进', other: '其他' };
+      recent.innerHTML = recentR.data.map(function(f) {
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div><strong>' + esc(f.title) + '</strong> <span style="font-size:.75rem;color:var(--text3)">[' + (names[f.project]||f.project) + '] [' + (typeMap[f.type]||f.type) + ']</span></div><div style="font-size:.75rem;color:var(--text3)">' + new Date(f.created_at).toLocaleDateString('zh-CN') + '</div></div>';
+      }).join('');
+    } else {
+      recent.innerHTML = '<div class="empty">暂无反馈</div>';
+    }
+  } catch(e) {
+    errorCount++;
+    recent.innerHTML = '<div class="empty">加载失败</div>';
   }
+
+  if (errorCount > 0) showError('部分数据加载失败（' + errorCount + ' 项），请检查数据库状态');
 }
 
 // ========== Feedbacks ==========
 async function loadFeedbacks() {
+  if (!checkDB()) { showError('数据库未连接，请刷新页面'); return; }
+  clearError();
   var tbody = document.getElementById('feedback-tbody');
   var empty = document.getElementById('feedback-empty');
-  tbody.innerHTML = '';
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
   empty.classList.add('hidden');
 
-  var q = db.from('feedbacks').select('*').order('created_at', { ascending: false });
-  var fp = document.getElementById('filter-project').value;
-  var ft = document.getElementById('filter-type').value;
-  var fs = document.getElementById('filter-status').value;
-  if (fp) q = q.eq('project', fp);
-  if (ft) q = q.eq('type', ft);
-  if (fs) q = q.eq('status', fs);
+  try {
+    var q = db.from('feedbacks').select('*').order('created_at', { ascending: false });
+    var fp = document.getElementById('filter-project').value;
+    var ft = document.getElementById('filter-type').value;
+    var fs = document.getElementById('filter-status').value;
+    if (fp) q = q.eq('project', fp);
+    if (ft) q = q.eq('type', ft);
+    if (fs) q = q.eq('status', fs);
 
-  var result = await q.limit(100);
-  if (!result.data || result.data.length === 0) { empty.classList.remove('hidden'); return; }
-  feedbackCache = result.data;
+    var result = await q.limit(100);
+    if (!queryOK(result)) throw new Error(result.error ? result.error.message : '查询失败');
+    if (!result.data || result.data.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    feedbackCache = result.data;
 
-  var names = { 'bank-rec': '银行对账', 'tax-tool': '个税工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表', 'cn-football-sim': '国足闯关模拟器' };
-  var typeMap = { bug: 'Bug', feature: '功能建议', improvement: '改进', other: '其他' };
-  var statusMap = { open: '待处理', in_progress: '处理中', resolved: '已解决', closed: '已关闭' };
+    var names = { 'bank-rec': '银行对账', 'tax-tool': '个税工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表', 'cn-football-sim': '国足闯关模拟器', 'cash-flow': '现金流量表' };
+    var typeMap = { bug: 'Bug', feature: '功能建议', improvement: '改进', other: '其他' };
+    var statusMap = { open: '待处理', in_progress: '处理中', resolved: '已解决', closed: '已关闭' };
 
-  tbody.innerHTML = result.data.map(function(f) {
-    return '<tr><td>' + new Date(f.created_at).toLocaleString('zh-CN') + '</td><td>' + (names[f.project]||f.project) + '</td><td>' + (typeMap[f.type]||f.type) + '</td><td><div style="font-weight:500">' + esc(f.title) + '</div><div style="font-size:.78rem;color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.content) + '</div>' + (f.contact ? '<div style="font-size:.72rem;color:var(--text3)">\uD83D\uDCE7 ' + esc(f.contact) + '</div>' : '') + (f.reply ? '<div style="font-size:.75rem;color:var(--green);margin-top:2px">\u21B3 ' + esc(f.reply) + '</div>' : '') + '</td><td><span class="status ' + f.status + '">' + (statusMap[f.status]||f.status) + '</span></td><td><button class="reply-btn" data-id="' + f.id + '">回复</button></td></tr>';
-  }).join('');
+    tbody.innerHTML = result.data.map(function(f) {
+      return '<tr><td>' + new Date(f.created_at).toLocaleString('zh-CN') + '</td><td>' + (names[f.project]||f.project) + '</td><td>' + (typeMap[f.type]||f.type) + '</td><td><div style="font-weight:500">' + esc(f.title) + '</div><div style="font-size:.78rem;color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.content) + '</div>' + (f.contact ? '<div style="font-size:.72rem;color:var(--text3)">\uD83D\uDCE7 ' + esc(f.contact) + '</div>' : '') + (f.reply ? '<div style="font-size:.75rem;color:var(--green);margin-top:2px">\u21B3 ' + esc(f.reply) + '</div>' : '') + '</td><td><span class="status ' + f.status + '">' + (statusMap[f.status]||f.status) + '</span></td><td><button class="reply-btn" data-id="' + f.id + '">回复</button></td></tr>';
+    }).join('');
 
-  tbody.querySelectorAll('.reply-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = parseInt(this.dataset.id);
-      var fb = feedbackCache.find(function(f) { return f.id === id; });
-      if (fb) openReply(fb);
+    tbody.querySelectorAll('.reply-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = parseInt(this.dataset.id);
+        var fb = feedbackCache.find(function(f) { return f.id === id; });
+        if (fb) openReply(fb);
+      });
     });
-  });
+  } catch(e) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.textContent = '加载失败: ' + (e.message || '未知错误');
+    showError('反馈列表加载失败，请检查数据库状态');
+  }
 }
 
 document.getElementById('filter-project').addEventListener('change', function() { if (currentTab === 'feedbacks') loadFeedbacks(); });
@@ -354,12 +440,17 @@ document.getElementById('reply-cancel').addEventListener('click', function() {
 });
 
 document.getElementById('reply-save').addEventListener('click', async function() {
+  if (!checkDB()) { showError('数据库未连接'); return; }
   var status = document.getElementById('reply-status').value;
   var reply = document.getElementById('reply-content').value.trim();
-  var result = await db.from('feedbacks').update({ status: status, reply: reply || null }).eq('id', currentReplyId);
-  if (result.error) { alert('保存失败: ' + result.error.message); return; }
-  document.getElementById('reply-modal').classList.remove('show');
-  loadFeedbacks();
+  try {
+    var result = await db.from('feedbacks').update({ status: status, reply: reply || null }).eq('id', currentReplyId);
+    if (result.error) { alert('保存失败: ' + result.error.message); return; }
+    document.getElementById('reply-modal').classList.remove('show');
+    loadFeedbacks();
+  } catch(e) {
+    alert('保存失败: ' + (e.message || '未知错误'));
+  }
 });
 
 // ========== Analytics ==========
@@ -388,7 +479,8 @@ var EVT_COLORS = {
   buy_item_failed: '#b45309',
   start_match: '#dc2626',
   match_result: '#1d4ed8',
-  restart_game: '#475569'
+  restart_game: '#475569',
+  tool_loaded: '#0891b2'
 };
 var EVT_NAMES = {
   page_view: '页面浏览',
@@ -415,27 +507,49 @@ var EVT_NAMES = {
   buy_item_failed: '购买失败',
   start_match: '开始比赛',
   match_result: '比赛结算',
-  restart_game: '重新开档'
+  restart_game: '重新开档',
+  tool_loaded: '工具加载'
 };
 
 async function loadAnalytics() {
+  if (!checkDB()) { showError('数据库未连接，请刷新页面'); return; }
+  clearError();
   var days = parseInt(document.getElementById('analytics-days').value);
   var project = document.getElementById('analytics-project').value;
   var since = new Date(Date.now() - days * 86400000).toISOString();
 
-  // Fetch all events in range
-  var q = db.from('usage_events').select('*').gte('created_at', since).order('created_at');
-  if (project) q = q.eq('project', project);
-  var result = await q.limit(5000);
-  var events = result.data || [];
+  // Show loading skeleton
+  document.getElementById('event-dist').innerHTML = '<div class="loading">加载中...</div>';
+  document.getElementById('funnel-chart').innerHTML = '<div class="loading">加载中...</div>';
+  document.getElementById('daily-bars').innerHTML = '';
+  document.getElementById('daily-labels').innerHTML = '';
+  document.getElementById('insights').innerHTML = '';
 
-  // If "all projects", also fetch project info for grouping
-  var projectFilter = project ? [project] : ['bank-rec', 'tax-tool', 'tax-calc', 'fin-report', 'cn-football-sim'];
+  try {
+    var q = db.from('usage_events').select('*').gte('created_at', since).order('created_at');
+    if (project) q = q.eq('project', project);
+    var result = await q.limit(5000);
+    if (!queryOK(result)) throw new Error(result.error ? result.error.message : '查询失败');
+    var events = result.data || [];
 
-  renderEventDist(events, projectFilter);
-  renderFunnel(events, projectFilter);
-  renderDailyTrend(events, days, projectFilter);
-  renderInsights(events, projectFilter);
+    var projectFilter = project ? [project] : ['bank-rec', 'tax-tool', 'tax-calc', 'fin-report', 'cn-football-sim', 'cash-flow'];
+
+    renderEventDist(events, projectFilter);
+    renderFunnel(events, projectFilter);
+    renderDailyTrend(events, days, projectFilter);
+    renderInsights(events, projectFilter);
+
+    if (events.length === 0) {
+      document.getElementById('event-dist').innerHTML += '<div class="empty" style="margin-top:8px">所选时间范围内暂无事件数据</div>';
+    }
+  } catch(e) {
+    document.getElementById('event-dist').innerHTML = '<div class="empty">分析数据加载失败</div>';
+    document.getElementById('funnel-chart').innerHTML = '<div class="empty">分析数据加载失败</div>';
+    document.getElementById('daily-bars').innerHTML = '';
+    document.getElementById('daily-labels').innerHTML = '';
+    document.getElementById('insights').innerHTML = '';
+    showError('分析数据加载失败: ' + (e.message || '未知错误'));
+  }
 }
 
 function renderEventDist(events, projects) {
@@ -469,7 +583,7 @@ function renderEventDist(events, projects) {
     });
   });
 
-  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器' };
+  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器', 'cash-flow': '现金流量表' };
   var html = '';
   projects.forEach(function(p) {
     html += '<div class="hbar-wrap"><div class="title">' + (names[p] || p) + '</div>';
@@ -486,7 +600,7 @@ function renderEventDist(events, projects) {
 
 function renderFunnel(events, projects) {
   var funnel = document.getElementById('funnel-chart');
-  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器' };
+  var names = { 'bank-rec': '银行对账工具', 'tax-tool': '个税决策对比工具', 'tax-calc': '税金计算器', 'fin-report': '财务报表数据分析', 'cn-football-sim': '国足世界杯闯关模拟器', 'cash-flow': '现金流量表' };
 
   // Define funnel steps per project
   var funnels = {
@@ -494,7 +608,8 @@ function renderFunnel(events, projects) {
     'tax-tool': ['page_view', 'select_scheme', 'complete_calc', 'calc_step3'],
     'tax-calc': ['page_view', 'search', 'calculate'],
     'fin-report': ['page_view', 'file_upload', 'start_extraction', 'complete_extraction', 'export_excel'],
-    'cn-football-sim': ['page_view', 'choose_coach', 'choose_sponsor', 'pick_strategy', 'start_match', 'match_result']
+    'cn-football-sim': ['page_view', 'choose_coach', 'choose_sponsor', 'pick_strategy', 'start_match', 'match_result'],
+    'cash-flow': ['page_view', 'tool_loaded']
   };
 
   var html = '';

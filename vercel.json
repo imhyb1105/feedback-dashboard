@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/supabase/:path*",
+      "destination": "/api/supabase-proxy?p=:path*"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/keep-alive",
+      "schedule": "0 8 */5 * *"
+    }
+  ]
+}
