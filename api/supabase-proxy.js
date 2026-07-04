@@ -72,13 +72,11 @@ module.exports = async function handler(req, res) {
     res.setHeader('x-proxy-target', targetUrl);
     res.setHeader('x-proxy-body-len', String(upstreamBody.length));
 
-    // 尝试 JSON 解析，成功则用 res.json，失败则用 res.send
-    try {
-      var parsed = JSON.parse(upstreamBody);
-      return res.status(upstream.status).json(parsed);
-    } catch (parseErr) {
-      return res.status(upstream.status).send(upstreamBody);
-    }
+    // 直接写入响应，绕过 Vercel helper 可能的问题
+    res.statusCode = upstream.status;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    res.end(upstreamBody);
+    return;
   } catch (e) {
     return res.status(502).json({
       error: 'Proxy error',
