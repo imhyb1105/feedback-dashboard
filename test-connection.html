@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>Supabase 连接诊断</title>
+<style>body{font:14px system-ui,sans-serif;max-width:600px;margin:40px auto;padding:20px;background:#fefcf9}.p{background:#fff;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #e0e0e0}.ok{color:green}.fail{color:red}pre{background:#f5f5f5;padding:8px;font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}</style></head>
+<body>
+<h2>Supabase 连接诊断</h2>
+<div id="results"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+var SUPABASE_URL = 'https://dashboard.tianjiwantong.com.cn/api/supabase';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyZXN6dmNscXhldGZ5aGNsZ3B3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMzU3MzYsImV4cCI6MjA5ODcxMTczNn0.zrHVe87P9DpsTWrkaClCnlr0yTz2rgmrwfHnOTwsb8A';
+var out = document.getElementById('results');
+
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = 'p ' + (cls || '');
+  d.innerHTML = msg;
+  out.appendChild(d);
+}
+
+function dump(obj) {
+  return '<pre>' + JSON.stringify(obj, null, 2).replace(/</g, '&lt;') + '</pre>';
+}
+
+async function test() {
+  log('<b>步骤 1: 检查 supabase-js 加载</b>');
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    log('✅ supabase-js 已加载 (version: ' + (supabase.SupabaseClient ? 'v2' : 'unknown') + ')', 'ok');
+  } else {
+    log('❌ supabase-js 未加载或 createClient 不存在！', 'fail');
+    return;
+  }
+
+  log('<b>步骤 2: 创建 Supabase 客户端</b>');
+  var sb;
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    log('✅ 客户端创建成功', 'ok');
+    log('Base URL: <code>' + SUPABASE_URL + '</code>');
+  } catch(e) {
+    log('❌ 客户端创建失败: ' + e.message, 'fail');
+    return;
+  }
+
+  log('<b>步骤 3: 测试查询 (GET /rest/v1/feedbacks?limit=1)</b>');
+  try {
+    var t0 = Date.now();
+    var r = await sb.from('feedbacks').select('id').limit(1);
+    var t1 = Date.now();
+    if (r.error) {
+      log('❌ 查询返回错误 (' + (t1-t0) + 'ms): ' + r.error.message + dump(r.error), 'fail');
+    } else {
+      log('✅ 查询成功 (' + (t1-t0) + 'ms) — 返回 ' + r.data.length + ' 条记录' + dump(r.data), 'ok');
+    }
+  } catch(e) {
+    log('❌ 查询抛出异常: ' + e.message + dump(e), 'fail');
+  }
+
+  log('<b>步骤 4: 测试写入 (POST /rest/v1/usage_events)</b>');
+  try {
+    var t0 = Date.now();
+    var r = await sb.from('usage_events').insert({
+      project: 'cn-football-sim',
+      session_id: 'diag-' + Date.now(),
+      event: 'connection_test',
+      metadata: { source: 'test-connection.html', time: new Date().toISOString() }
+    });
+    var t1 = Date.now();
+    if (r.error) {
+      log('❌ 写入返回错误 (' + (t1-t0) + 'ms): ' + r.error.message + dump(r.error), 'fail');
+    } else {
+      log('✅ 写入成功 (' + (t1-t0) + 'ms)' + dump(r.data), 'ok');
+    }
+  } catch(e) {
+    log('❌ 写入抛出异常: ' + e.message + dump(e), 'fail');
+  }
+
+  log('<b>步骤 5: 测试通过代理写入 feedbacks</b>');
+  try {
+    var t0 = Date.now();
+    var r = await sb.from('feedbacks').insert({
+      project: 'cn-football-sim',
+      session_id: 'diag-' + Date.now(),
+      type: 'other',
+      title: '诊断测试 — 请忽略',
+      content: '这是 test-connection.html 自动生成的诊断测试反馈。',
+      contact: null
+    });
+    var t1 = Date.now();
+    if (r.error) {
+      log('❌ 写入反馈返回错误 (' + (t1-t0) + 'ms): ' + r.error.message + dump(r.error), 'fail');
+    } else {
+      log('✅ 写入反馈成功 (' + (t1-t0) + 'ms) — 应该已触发邮件通知' + dump(r.data), 'ok');
+    }
+  } catch(e) {
+    log('❌ 写入反馈抛出异常: ' + e.message + dump(e), 'fail');
+  }
+
+  log('<b>诊断完成。</b>如果所有步骤都通过，反馈系统应该正常工作。');
+}
+
+test().catch(function(e) {
+  log('❌ 诊断脚本异常: ' + e.message + dump(e), 'fail');
+});
+</script>
+</body>
+</html>
