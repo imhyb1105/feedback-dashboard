@@ -58,12 +58,12 @@ module.exports = async function handler(req, res) {
     var upstream = await fetch(targetUrl, fetchOpts);
     var upstreamBody = await upstream.text();
 
-    // 转发上游响应头（排除 hop-by-hop 和 CORS 冲突的头）
+    // 只转发安全的上游响应头（Content-Range 等会导致 Vercel 截断 body）
+    var safeHeaders = ['content-type', 'content-profile', 'sb-gateway-version', 'sb-project-ref'];
     upstream.headers.forEach(function(v, k) {
-      var kl = k.toLowerCase();
-      if (kl === 'transfer-encoding' || kl === 'connection' || kl === 'keep-alive') return;
-      if (kl === 'access-control-allow-origin') return;
-      res.setHeader(k, v);
+      if (safeHeaders.indexOf(k.toLowerCase()) !== -1) {
+        res.setHeader(k, v);
+      }
     });
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type, prefer');
