@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/supabase/:path*",
-      "destination": "/api/supabase-proxy?p=:path*"
+      "source": "/api/supabase/(.*)",
+      "destination": "/api/supabase-proxy?p=$1"
     }
   ],
   "crons": [
